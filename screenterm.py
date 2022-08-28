@@ -11,96 +11,135 @@ fields = [
     (8, 1, 16, []),
 ]
 
+class Screen:
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        
+        self.stdscr.clear()
+        
+        max_rows, max_cols = self.stdscr.getmaxyx()
+        self.term_win = curses.newwin(max_rows - 1, max_cols, 0, 0)
+        self.status_win = curses.newwin(1, max_cols, max_rows - 1, 0)
+        
+        self.fields = []
+        
+        self.max_rows, self.max_cols = self.stdscr.getmaxyx()
+    
+    def add_field(self, field):
+        self.fields.append(field)
+    
+    def clear_fields(self):
+        self.fields = []
+    
+    def getpos(self):
+        return self.term_win.getyx()
+    
+    def setpos(self, row, col):
+        self.term_win.move(row, col)
+    
+    def isprotected(self, row, col):
+        protected = True
+        for start_row, start_col, length, attr in self.fields:
+            if (
+                row == start_row
+                and col >= start_col
+                and col - start_col < length
+            ):
+                protected = False
+                break
+        
+        return protected
+    
+    def write(self, row, col, c):
+        try:
+            self.term_win.addstr(row, col, c)
+            self.term_win.refresh()
+        except curses.error:
+            pass
+    
+    def put(self, c):
+        try:
+            self.term_win.addstr(c)
+            self.term_win.refresh()
+        except curses.error:
+            self.term_win.move(0, 0)
+    
+    def status(self, s):
+        self.status_win.clear()
+        self.status_win.addstr(s)
+        self.status_win.refresh()
+        self.term_win.refresh()
+    
+    def cursor_up(self):
+        row, col = self.term_win.getyx()
+        if row == 0:
+            self.term_win.move(self.max_rows - 2, col)
+        else:
+            self.term_win.move(row - 1, col)
+        self.term_win.refresh()
+    
+    def cursor_down(self):
+        row, col = self.term_win.getyx()
+        if row < self.max_rows - 2:
+            self.term_win.move(row + 1, col)
+        else:
+            self.term_win.move(0, col)
+        self.term_win.refresh()
+    
+    def cursor_left(self):
+        row, col = self.term_win.getyx()
+        if col > 0:
+            self.term_win.move(row, col - 1)
+        elif row == 0:
+            self.term_win.move(self.max_rows - 2, self.max_cols - 1)
+        else:
+            self.term_win.move(row - 1, self.max_cols - 1)
+        self.term_win.refresh()
+    
+    def cursor_right(self):
+        row, col = self.term_win.getyx()
+        if col < self.max_cols - 1:
+            self.term_win.move(row, col + 1)
+        elif row == self.max_rows - 2:
+            self.term_win.move(0, 0)
+        else:
+            self.term_win.move(row + 1, 0)
+        self.term_win.refresh()
+
 def main(stdscr):
     stdscr.clear()
-
-    max_rows, max_cols = stdscr.getmaxyx()
-    term_win = curses.newwin(max_rows - 1, max_cols, 0, 0)
-    status_win = curses.newwin(1, max_cols, max_rows - 1, 0)
-
+    
+    screen = Screen(stdscr)
+    
     while True:
         c = stdscr.getkey()
-
-        row, col = term_win.getyx()
-
+        
         if (
             c.isprintable() 
             and len(c) == 1
             and (not c.isspace() or c == " ")
         ):
-            status_win.clear()
-
-            protected = True
-            for start_row, start_col, length, attr in fields:
-                if (
-                    row == start_row
-                    and col >= start_col
-                    and col - start_col < length
-                ):
-                    protected = False
-                    break
-
-            if protected:
-                status_win.addstr("Protected")
-                status_win.refresh()
-
+            row, col = screen.getpos()
+            if screen.isprotected(row, col):
+                screen.status("X - Protected")
             else:
-                status_win.refresh()
-
-                try:
-                    term_win.addstr(c)
-                except curses.error:
-                    term_win.move(0, 0)
-
-        elif c == "KEY_RIGHT":
-            if col < max_cols - 1:
-                term_win.move(row, col + 1)
-            elif row == max_rows - 2:
-                term_win.move(0, 0)
-            else:
-                term_win.move(row + 1, 0)
-
-        elif c == "KEY_LEFT" or c == "KEY_BACKSPACE":
-            if col > 0:
-                term_win.move(row, col - 1)
-            elif row == 0:
-                term_win.move(max_rows - 2, max_cols - 1)
-            else:
-                term_win.move(row - 1, max_cols - 1)
-
+                screen.status("")
+                screen.put(c)
+        
         elif c == "KEY_UP":
-            if row == 0:
-                term_win.move(max_rows - 2, col)
-            else:
-                term_win.move(row - 1, col)
-
+            screen.cursor_up()
+        
         elif c == "KEY_DOWN":
-            if row < max_rows - 2:
-                term_win.move(row + 1, col)
-            else:
-                term_win.move(0, col)
-
-        elif c == "\n":
-            try:
-                input = term_win.instr(row, col, 16).decode("utf-8")
-            except curses.error:
-                input = "Error reading input"
-
-            status_win.clear()
-            status_win.addstr(input)
-            status_win.refresh()
-
+            screen.cursor_down()
+        
+        elif c == "KEY_LEFT" or c == "KEY_BACKSPACE":
+            screen.cursor_left()
+        
+        elif c == "KEY_RIGHT":
+            screen.cursor_right()
+        
         else:
-            status_win.clear()
-
-            if c.isprintable() and not c.isspace():
-                status_win.addstr(f"{c} key pressed!")
-            else:
-                status_win.addstr(f"Unprintable key pressed!")
-
-            status_win.refresh()
-
-        term_win.refresh()
+            screen.status("X - Unrecognized")
 
 curses.wrapper(main)
 
