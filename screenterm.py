@@ -1,15 +1,5 @@
 import curses
 
-fields = [
-    (1, 1, 16, []),
-    (2, 1, 16, []),
-    (3, 1, 16, []),
-    (4, 1, 16, []),
-    (5, 1, 16, []),
-    (6, 1, 16, []),
-    (7, 1, 16, []),
-    (8, 1, 16, []),
-]
 
 class Screen:
     def __init__(self, stdscr):
@@ -40,11 +30,15 @@ class Screen:
         
         self.max_rows, self.max_cols = self.stdscr.getmaxyx()
     
-    def add_field(self, field):
-        self.fields.append(field)
+    def add_field(self, row, col, length, attr):
+        self.fields.append((row, col, length, attr))
     
     def clear_fields(self):
         self.fields = []
+    
+    def read_field(self, n):
+        row, col, length, _ = self.fields[n]
+        return self.term_win.instr(row, col, length).decode("utf-8")
     
     def getpos(self):
         return self.term_win.getyx()
@@ -71,6 +65,10 @@ class Screen:
             self.term_win.addstr(c)
         except curses.error:
             self.term_win.move(0, 0)
+        self.term_win.refresh()
+    
+    def clear(self):
+        self.term_win.clear()
         self.term_win.refresh()
     
     def write(self, row, col, c):
@@ -122,15 +120,20 @@ class Screen:
             self.term_win.move(row + 1, 0)
         self.term_win.refresh()
 
+
 def main(stdscr):
     stdscr.clear()
     
     screen = Screen(stdscr)
     
-    screen.write(1, 1, "Logon    ===>")
-    screen.write(2, 1, "Password ===>")
-    screen.write(3, 1, "Command  ===>")
+    screen.write(2, 1, "Item ID     ===>")
+    screen.write(3, 1, "Description ===>")
+    screen.write(4, 1, "Price       ===>")
     screen.setpos(0, 0)
+    
+    screen.add_field(2, 18, 16, [])
+    screen.add_field(3, 18, 16, [])
+    screen.add_field(4, 18, 16, [])
     
     while True:
         c = stdscr.getkey()
@@ -159,8 +162,31 @@ def main(stdscr):
         elif c == "KEY_RIGHT":
             screen.cursor_right()
         
+        elif c == "\n":
+            break
+        
         else:
             screen.status("X - Unrecognized")
 
-curses.wrapper(main)
+    item_id = screen.read_field(0).strip()
+    description = screen.read_field(1).strip()
+    price = screen.read_field(2).strip()
+    return item_id, description, price
 
+
+if __name__ == "__main__":
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+    
+    item_id, description, price = main(stdscr)
+    
+    curses.nocbreak()
+    stdscr.keypad(False)
+    curses.echo()
+    curses.endwin()
+    
+    print(f"Your item ID was: {item_id}")
+    print(f"Your description was: {description}")
+    print(f"Your price was: {price}")
