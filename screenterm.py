@@ -17,9 +17,24 @@ class Screen:
         
         self.stdscr.clear()
         
+        # workaround for bug where text was not written
+        stdscr.nodelay(True)
+        try:
+            stdscr.getkey()
+        except:
+            pass
+        stdscr.nodelay(False)
+        
         max_rows, max_cols = self.stdscr.getmaxyx()
         self.term_win = curses.newwin(max_rows - 1, max_cols, 0, 0)
         self.status_win = curses.newwin(1, max_cols, max_rows - 1, 0)
+        
+        self.status_win.clear()
+        self.status_win.refresh()
+        
+        self.term_win.clear()
+        self.term_win.move(0, 0)
+        self.term_win.refresh()
         
         self.fields = []
         
@@ -36,33 +51,34 @@ class Screen:
     
     def setpos(self, row, col):
         self.term_win.move(row, col)
+        self.term_win.refresh()
     
-    def isprotected(self, row, col):
-        protected = True
+    def isinfield(self, row, col):
+        field = None
         for start_row, start_col, length, attr in self.fields:
             if (
                 row == start_row
                 and col >= start_col
                 and col - start_col < length
             ):
-                protected = False
+                field = (start_row, start_col, length, attr)
                 break
         
-        return protected
-    
-    def write(self, row, col, c):
-        try:
-            self.term_win.addstr(row, col, c)
-            self.term_win.refresh()
-        except curses.error:
-            pass
+        return field
     
     def put(self, c):
         try:
             self.term_win.addstr(c)
-            self.term_win.refresh()
         except curses.error:
             self.term_win.move(0, 0)
+        self.term_win.refresh()
+    
+    def write(self, row, col, c):
+        try:
+            self.term_win.addstr(row, col, c)
+        except curses.error:
+            pass
+        self.term_win.refresh()
     
     def status(self, s):
         self.status_win.clear()
@@ -111,6 +127,11 @@ def main(stdscr):
     
     screen = Screen(stdscr)
     
+    screen.write(1, 1, "Logon    ===>")
+    screen.write(2, 1, "Password ===>")
+    screen.write(3, 1, "Command  ===>")
+    screen.setpos(0, 0)
+    
     while True:
         c = stdscr.getkey()
         
@@ -120,7 +141,7 @@ def main(stdscr):
             and (not c.isspace() or c == " ")
         ):
             row, col = screen.getpos()
-            if screen.isprotected(row, col):
+            if not screen.isinfield(row, col):
                 screen.status("X - Protected")
             else:
                 screen.status("")
