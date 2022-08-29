@@ -129,6 +129,28 @@ class Screen:
             new_row, col, length, _ = field
             self.setpos(new_row, col + length)
     
+    def cursor_snap_nearest(self):
+        row, col = self.term_win.getyx()
+        new_field = None
+        distance = 0
+        for f in self.fields:
+            new_row, new_col, length, _ = f
+            
+            new_distance = dist([col, row], [new_col, new_row])
+            new_distance_left = (
+                dist([col, row], [new_col + length - 1, new_row])
+            )
+            
+            min_distance = min(new_distance, new_distance_left)
+            
+            if not new_field or min_distance < distance:
+                distance = min_distance
+                new_field = f
+                
+        if new_field:
+            new_row, new_col, _, _ = new_field
+            self.setpos(new_row, new_col)
+    
     def cursor_tab(self):
         row, col = self.term_win.getyx()
         field, index = self.isinfield(row, col)
@@ -141,25 +163,7 @@ class Screen:
             self.setpos(new_row, new_col)
         
         else:
-            new_field = None
-            distance = 0
-            for f in self.fields:
-                new_row, new_col, length, _ = f
-                
-                new_distance = dist([col, row], [new_col, new_row])
-                new_distance_left = (
-                    dist([col, row], [new_col + length - 1, new_row])
-                )
-                
-                min_distance = min(new_distance, new_distance_left)
-                
-                if not new_field or min_distance < distance:
-                    distance = min_distance
-                    new_field = f
-                    
-            if new_field:
-                new_row, new_col, _, _ = new_field
-                self.setpos(new_row, new_col)
+            self.cursor_snap_nearest()
     
     def cursor_right(self):
         row, col = self.term_win.getyx()
