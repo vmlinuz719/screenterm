@@ -165,6 +165,23 @@ class Screen:
         else:
             self.cursor_snap_nearest()
     
+    def cursor_backtab(self):
+        row, col = self.term_win.getyx()
+        field, index = self.isinfield(row, col)
+        if not field:
+            field, index = self.isinfield(row, col - 1)
+        
+        if field:
+            next_field_index = (
+                index - 1 if index - 1 >= 0
+                else len(self.fields) - 1
+            )
+            new_row, new_col, _, _ = self.fields[next_field_index]
+            self.setpos(new_row, new_col)
+        
+        else:
+            self.cursor_snap_nearest()
+    
     def cursor_right(self):
         row, col = self.term_win.getyx()
         if col < self.max_cols - 1:
@@ -228,6 +245,9 @@ def main(stdscr):
         
         elif c == "\t":
             screen.cursor_tab()
+        
+        elif c == "KEY_BTAB":
+            screen.cursor_backtab()
         
         elif c == "\n":
             break
