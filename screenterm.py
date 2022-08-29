@@ -1,5 +1,5 @@
 import curses
-from math import dist, inf
+from math import dist
 
 
 class Screen:
@@ -144,10 +144,17 @@ class Screen:
             new_field = None
             distance = 0
             for f in self.fields:
-                new_row, new_col, _, _ = f
+                new_row, new_col, length, _ = f
+                
                 new_distance = dist([col, row], [new_col, new_row])
-                if not new_field or new_distance < distance:
-                    distance = new_distance
+                new_distance_left = (
+                    dist([col, row], [new_col + length - 1, new_row])
+                )
+                
+                min_distance = min(new_distance, new_distance_left)
+                
+                if not new_field or min_distance < distance:
+                    distance = min_distance
                     new_field = f
                     
             if new_field:
@@ -173,11 +180,13 @@ def main(stdscr):
     screen.write(2, 1, "Item ID     ===>")
     screen.write(3, 1, "Description ===>")
     screen.write(4, 1, "Price       ===>")
+    screen.write(4, 35, "Code ===>")
     screen.setpos(0, 0)
     
     screen.add_field(2, 18, 16, [])
     screen.add_field(3, 18, 16, [])
     screen.add_field(4, 18, 16, [])
+    screen.add_field(4, 45, 4, [])
     
     while True:
         c = stdscr.getkey()
