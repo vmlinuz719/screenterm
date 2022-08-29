@@ -1,4 +1,5 @@
 import curses
+from math import dist, inf
 
 
 class Screen:
@@ -47,19 +48,6 @@ class Screen:
         self.term_win.move(row, col)
         self.term_win.refresh()
     
-    def isinfield(self, row, col):
-        field = None
-        for start_row, start_col, length, attr in self.fields:
-            if (
-                row == start_row
-                and col >= start_col
-                and col - start_col < length
-            ):
-                field = (start_row, start_col, length, attr)
-                break
-        
-        return field
-    
     def put(self, c):
         try:
             self.term_win.addstr(c)
@@ -83,6 +71,21 @@ class Screen:
         self.status_win.addstr(s)
         self.status_win.refresh()
         self.term_win.refresh()
+    
+    def isinfield(self, row, col):
+        field = None
+        field_no = -1
+        for i, (start_row, start_col, length, attr) in enumerate(self.fields):
+            if (
+                row == start_row
+                and col >= start_col
+                and col - start_col < length
+            ):
+                field = (start_row, start_col, length, attr)
+                field_no = i
+                break
+        
+        return field, field_no
     
     def cursor_up(self):
         row, col = self.term_win.getyx()
@@ -109,6 +112,47 @@ class Screen:
         else:
             self.term_win.move(row - 1, self.max_cols - 1)
         self.term_win.refresh()
+    
+    def cursor_home(self):
+        row, col = self.term_win.getyx()
+        field, _ = self.isinfield(row, col - 1)
+        
+        if field:
+            new_row, new_col, _, _ = field
+            self.setpos(new_row, new_col)
+    
+    def cursor_end(self):
+        row, col = self.term_win.getyx()
+        field, _ = self.isinfield(row, col)
+        
+        if field:
+            new_row, col, length, _ = field
+            self.setpos(new_row, col + length)
+    
+    def cursor_tab(self):
+        row, col = self.term_win.getyx()
+        field, index = self.isinfield(row, col)
+        if not field:
+            field, index = self.isinfield(row, col - 1)
+        
+        if field:
+            next_field_index = (index + 1) % len(self.fields)
+            new_row, new_col, _, _ = self.fields[next_field_index]
+            self.setpos(new_row, new_col)
+        
+        else:
+            new_field = None
+            distance = 0
+            for f in self.fields:
+                new_row, new_col, _, _ = f
+                new_distance = dist([col, row], [new_col, new_row])
+                if not new_field or new_distance < distance:
+                    distance = new_distance
+                    new_field = f
+                    
+            if new_field:
+                new_row, new_col, _, _ = new_field
+                self.setpos(new_row, new_col)
     
     def cursor_right(self):
         row, col = self.term_win.getyx()
@@ -144,7 +188,8 @@ def main(stdscr):
             and (not c.isspace() or c == " ")
         ):
             row, col = screen.getpos()
-            if not screen.isinfield(row, col):
+            field, _ = screen.isinfield(row, col)
+            if not field:
                 screen.status("X - Protected")
             else:
                 screen.status("")
@@ -162,11 +207,20 @@ def main(stdscr):
         elif c == "KEY_RIGHT":
             screen.cursor_right()
         
+        elif c == "KEY_HOME":
+            screen.cursor_home()
+        
+        elif c == "KEY_END":
+            screen.cursor_end()
+        
+        elif c == "\t":
+            screen.cursor_tab()
+        
         elif c == "\n":
             break
         
         else:
-            screen.status("X - Unrecognized")
+            screen.status(f"X - Unrecognized \"{c}\"")
 
     item_id = screen.read_field(0).strip()
     description = screen.read_field(1).strip()
@@ -180,7 +234,10 @@ if __name__ == "__main__":
     curses.cbreak()
     stdscr.keypad(True)
     
-    item_id, description, price = main(stdscr)
+    try:
+        item_id, description, price = main(stdscr)
+    except:
+        item_id, description, price = ("", "", "")
     
     curses.nocbreak()
     stdscr.keypad(False)
